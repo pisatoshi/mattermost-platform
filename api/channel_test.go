@@ -478,11 +478,11 @@ func TestGetChannelCounts(t *testing.T) {
 	} else {
 		counts := result.Data.(*model.ChannelCounts)
 
-		if len(counts.Counts) != 4 {
+		if len(counts.Counts) != 5 {
 			t.Fatal("wrong number of channel counts")
 		}
 
-		if len(counts.UpdateTimes) != 4 {
+		if len(counts.UpdateTimes) != 5 {
 			t.Fatal("wrong number of channel update times")
 		}
 

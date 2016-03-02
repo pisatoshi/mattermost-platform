@@ -170,7 +170,13 @@ func CreateDefaultChannels(c *Context, teamId string) ([]*model.Channel, *model.
 		return nil, err
 	}
 
-	channels := []*model.Channel{townSquare, offTopic}
+	research := &model.Channel{DisplayName: "Reserch", Name: "research", Type: model.CHANNEL_OPEN, TeamId: teamId}
+
+	if _, err := CreateChannel(c, research, false); err != nil {
+		return nil, err
+	}
+
+	channels := []*model.Channel{townSquare, offTopic, research}
 	return channels, nil
 }
 
@@ -524,6 +530,17 @@ func JoinDefaultChannels(user *model.User, channelRole string) *model.AppError {
 	}
 
 	if result := <-Srv.Store.Channel().GetByName(user.TeamId, "off-topic"); result.Err != nil {
+		err = result.Err
+	} else {
+		cm := &model.ChannelMember{ChannelId: result.Data.(*model.Channel).Id, UserId: user.Id,
+			Roles: channelRole, NotifyProps: model.GetDefaultChannelNotifyProps()}
+
+		if cmResult := <-Srv.Store.Channel().SaveMember(cm); cmResult.Err != nil {
+			err = cmResult.Err
+		}
+	}
+
+	if result := <-Srv.Store.Channel().GetByName(user.TeamId, "research"); result.Err != nil {
 		err = result.Err
 	} else {
 		cm := &model.ChannelMember{ChannelId: result.Data.(*model.Channel).Id, UserId: user.Id,
