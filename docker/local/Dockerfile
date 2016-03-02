@@ -68,6 +68,7 @@ VOLUME /var/lib/mysql
 ADD . /go/src/github.com/mattermost/platform
 
 RUN go get github.com/tools/godep
+RUN go get github.com/lestrrat/go-ngram
 RUN cd /go/src/github.com/mattermost/platform/; godep go install
 RUN cd /go/src/github.com/mattermost/platform/web/react; npm install
 

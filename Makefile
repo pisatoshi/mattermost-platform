@@ -48,7 +48,8 @@ start-docker:
 
 	@if [ $(shell docker ps -a | grep -ci mattermost-mysql) -eq 0 ]; then \
 		echo starting mattermost-mysql; \
-		docker run --name mattermost-mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=mostest \
+		docker run --name mattermost-mysql -p 3306:3306 \
+		-v `pwd`/config/mysql:/etc/mysql/conf.d -e MYSQL_ROOT_PASSWORD=mostest \
 		-e MYSQL_USER=mmuser -e MYSQL_PASSWORD=mostest -e MYSQL_DATABASE=mattermost_test -d mysql:5.7 > /dev/null; \
 	elif [ $(shell docker ps | grep -ci mattermost-mysql) -eq 0 ]; then \
 		echo restarting mattermost-mysql; \

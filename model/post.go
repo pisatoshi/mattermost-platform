@@ -5,7 +5,9 @@ package model
 
 import (
 	"encoding/json"
+	"github.com/lestrrat/go-ngram"
 	"io"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -30,6 +32,7 @@ type Post struct {
 	ParentId      string          `json:"parent_id"`
 	OriginalId    string          `json:"original_id"`
 	Message       string          `json:"message"`
+	MessageNgram  string          `json:"message_ngram"`
 	Type          string          `json:"type"`
 	Props         StringInterface `json:"props"`
 	Hashtags      string          `json:"hashtags"`
@@ -142,6 +145,24 @@ func (o *Post) PreSave() {
 
 	if o.Filenames == nil {
 		o.Filenames = []string{}
+	}
+
+	if o.Message == "" {
+		o.MessageNgram = o.Message
+	} else {
+		tokens := ""
+		for _, term := range strings.Split(o.Message, " ") {
+			if term != "" {
+				tok := ngram.NewTokenize(2, term)
+				for _, token := range tok.Tokens() {
+					if tokens != "" {
+						tokens += " "
+					}
+					tokens += token.String()
+				}
+			}
+		}
+		o.MessageNgram = tokens
 	}
 }
 

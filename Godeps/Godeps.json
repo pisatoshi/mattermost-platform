@@ -6,6 +6,10 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/lestrrat/go-ngram",
+			"Rev": "4489dcc2a454dc1ab07f5951132b75a1fb6d5126"
+		},
+		{
 			"ImportPath": "github.com/alecthomas/log4go",
 			"Rev": "8e9057c3b25c409a34c0b9737cdc82cbcafeabce"
 		},

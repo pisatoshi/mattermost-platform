@@ -326,11 +326,20 @@ func (ss SqlStore) CreateColumnIfNotExists(tableName string, columnName string, 
 		return true
 
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MYSQL {
-		_, err := ss.GetMaster().Exec("ALTER TABLE " + tableName + " ADD " + columnName + " " + mySqlColType + " DEFAULT '" + defaultValue + "'")
-		if err != nil {
-			l4g.Critical(utils.T("store.sql.create_column.critical"), err)
-			time.Sleep(time.Second)
-			panic(fmt.Sprintf(utils.T("store.sql.create_column.critical"), err.Error()))
+		if defaultValue == "" {
+			_, err := ss.GetMaster().Exec("ALTER TABLE " + tableName + " ADD " + columnName + " " + mySqlColType)
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.create_column.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.create_column.critical"), err.Error()))
+			}
+		} else {
+			_, err := ss.GetMaster().Exec("ALTER TABLE " + tableName + " ADD " + columnName + " " + mySqlColType + " DEFAULT '" + defaultValue + "'")
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.create_column.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.create_column.critical"), err.Error()))
+			}
 		}
 
 		return true

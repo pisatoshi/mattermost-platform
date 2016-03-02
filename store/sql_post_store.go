@@ -4,13 +4,14 @@
 package store
 
 import (
+	l4g "code.google.com/p/log4go"
 	"fmt"
+	"github.com/lestrrat/go-ngram"
+	"github.com/mattermost/platform/model"
+	"github.com/mattermost/platform/utils"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/mattermost/platform/model"
-	"github.com/mattermost/platform/utils"
 )
 
 type SqlPostStore struct {
@@ -28,6 +29,8 @@ func NewSqlPostStore(sqlStore *SqlStore) PostStore {
 		table.ColMap("RootId").SetMaxSize(26)
 		table.ColMap("ParentId").SetMaxSize(26)
 		table.ColMap("Message").SetMaxSize(4000)
+		// TODO:
+		table.ColMap("MessageNgram").SetMaxSize(4000)
 		table.ColMap("Type").SetMaxSize(26)
 		table.ColMap("Hashtags").SetMaxSize(1000)
 		table.ColMap("Props").SetMaxSize(8000)
@@ -43,6 +46,8 @@ func (s SqlPostStore) UpgradeSchemaIfNeeded() {
 
 	// ADDED for 1.3 REMOVE for 2.2
 	s.GetMaster().Exec(`UPDATE Preferences SET Type = :NewType WHERE Type = :CurrentType`, map[string]string{"NewType": model.POST_JOIN_LEAVE, "CurrentType": "join_leave"})
+
+	s.CreateColumnIfNotExists("Posts", "MessageNgram", "text", "text", "")
 }
 
 func (s SqlPostStore) CreateIndexesIfNotExists() {
@@ -52,6 +57,7 @@ func (s SqlPostStore) CreateIndexesIfNotExists() {
 	s.CreateIndexIfNotExists("idx_posts_root_id", "Posts", "RootId")
 
 	s.CreateFullTextIndexIfNotExists("idx_posts_message_txt", "Posts", "Message")
+	s.CreateFullTextIndexIfNotExists("idx_posts_message_ngram_txt", "Posts", "MessageNgram")
 	s.CreateFullTextIndexIfNotExists("idx_posts_hashtags_txt", "Posts", "Hashtags")
 }
 
@@ -626,6 +632,10 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 		}
 
 		searchType := "Message"
+		if woldcard := strings.Index(terms, "*"); woldcard == -1 {
+			searchType = "MessageNgram"
+		}
+
 		if params.IsHashtag {
 			searchType = "Hashtags"
 			for _, term := range strings.Split(terms, " ") {
@@ -720,6 +730,7 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 		if terms == "" {
 			// we've already confirmed that we have a channel or user to search for
 			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", "", 1)
+
 		} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 			// Parse text for wildcards
 			if wildcard, err := regexp.Compile("\\*($| )"); err == nil {
@@ -730,12 +741,37 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 
 			searchClause := fmt.Sprintf("AND %s @@  to_tsquery(:Terms)", searchType)
 			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", searchClause, 1)
+
 		} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MYSQL {
 			searchClause := fmt.Sprintf("AND MATCH (%s) AGAINST (:Terms IN BOOLEAN MODE)", searchType)
 			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", searchClause, 1)
 		}
 
 		queryParams["Terms"] = terms
+
+		if searchType == "MessageNgram" {
+			if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MYSQL {
+				searchTokens := ""
+				for _, term := range strings.Split(terms, " ") {
+					if term != "" {
+						l4g.Debug("[" + term + "]")
+						tok := ngram.NewTokenize(2, term)
+						searchToken := ""
+						for _, token := range tok.Tokens() {
+							if searchToken != "" {
+								searchToken += " "
+							}
+							searchToken += token.String()
+						}
+						if searchTokens != "" {
+							searchTokens += " "
+						}
+						searchTokens += "\"" + searchToken + "\""
+					}
+				}
+				queryParams["Terms"] = searchTokens
+			}
+		}
 
 		_, err := s.GetReplica().Select(&posts, searchQuery, queryParams)
 		if err != nil {
@@ -874,10 +910,10 @@ func (s SqlPostStore) AnalyticsPostCountsByDay(teamId string) StoreChannel {
 		result := StoreResult{}
 
 		query :=
-			`SELECT 
+			`SELECT
 			    Name, COUNT(Value) AS Value
 			FROM
-			    (SELECT 
+			    (SELECT
 			        DATE(FROM_UNIXTIME(Posts.CreateAt / 1000)) AS Name,
 			            '1' AS Value
 			    FROM
@@ -897,10 +933,10 @@ func (s SqlPostStore) AnalyticsPostCountsByDay(teamId string) StoreChannel {
 
 		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 			query =
-				`SELECT 
+				`SELECT
 				    Name, COUNT(Value) AS Value
 				FROM
-				    (SELECT 
+				    (SELECT
 				        TO_CHAR(DATE(TO_TIMESTAMP(Posts.CreateAt / 1000)), 'YYYY-MM-DD') AS Name,
 				            '1' AS Value
 				    FROM
